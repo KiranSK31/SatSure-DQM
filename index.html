@@ -488,9 +488,48 @@
                 <input type="file" id="qc-rules-input" class="hidden" accept=".xlsx, .xls">
             </div>
 
+
             <button id="modal-close"
                 class="mt-8 w-full py-3 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">
                 Cancel & Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Header Validation Error Modal -->
+    <div id="header-error-modal"
+        class="fixed inset-0 z-[100] hidden flex items-center justify-center p-6 modal-overlay">
+        <div
+            class="modal-content w-full max-w-2xl bg-white rounded-[2.5rem] premium-shadow overflow-hidden p-10 animate-fade-in">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="alert-circle" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-xl font-black text-slate-900">Column Mismatch Detected</h3>
+                <p class="text-sm text-slate-400 mt-2">Your file's columns don't match the expected structure</p>
+            </div>
+
+            <div class="bg-red-50 border border-red-100 rounded-2xl p-5 mb-6">
+                <p id="header-error-message" class="text-sm text-slate-700 font-mono whitespace-pre-wrap"></p>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6">
+                <div class="flex items-start gap-3">
+                    <i data-lucide="info" class="w-5 h-5 text-blue-600 mt-0.5 shrink-0"></i>
+                    <div>
+                        <p class="text-sm font-bold text-blue-900 mb-2">Please check the reference template</p>
+                        <a id="header-reference-link" href="#" target="_blank" rel="noopener noreferrer"
+                            class="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                            View Expected Column Structure
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <button id="header-error-close"
+                class="w-full py-3 bg-slate-900 hover:bg-black text-white rounded-2xl text-sm font-bold transition-colors">
+                Close & Fix File
             </button>
         </div>
     </div>

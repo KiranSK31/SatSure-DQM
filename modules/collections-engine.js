@@ -6,17 +6,37 @@
 const CollectionsEngine = (() => {
 
     const MANDATORY_HEADERS = [
-        "Region Code",
         "FPO Code",
-        "Agri Area",
-        "Geographical Area",
-        "Sowing 1 Area",
-        "Sowing 1 %",
-        "Sowing 2 Area",
-        "Sowing 2 %",
-        "Sowing 3 Area",
-        "Sowing 3 %"
+        "State",
+        "District",
+        "Subdistrict",
+        "Village",
+        "RID",
+        "Total Geographical Area (ha)",
+        "Total Agriculture Area (ha)",
+        "Sowing 1 Area (ha)",
+        "Sowing 1 Percentage",
+        "Sowing2 Area (ha)",
+        "Sowing 2 Percentage",
+        "Sowing 3 Area (ha)",
+        "Sowing 3 Percentage",
+        "Major crops",
+        "Crop  Area (ha) K025",
+        "Crop  Area Percentage K025",
+        "Crop Area Risk",
+        "Harvest 1 Area(ha)",
+        "Harvest 1 Area Percentage",
+        "Harvest 2 Area(ha)",
+        "Harvest 2 Area Percentage",
+        "Harvest 2 Area Risk",
+        "Harvest 3 Area (ha)",
+        "Harvest 3 Area Percentage",
+        "Harvest 4 Area (ha)",
+        "Harvest 4 ACR",
+        "Harvest 4 Area Percentage"
     ];
+
+    const HEADER_REFERENCE_URL = "https://docs.google.com/spreadsheets/d/1rhZcuTNs4p2Q0G8seH3A0ArRkRMciFU7rih948HJmzs/edit?usp=sharing";
 
     /**
      * Step 3.1: Header Validation (Hard Stop)
@@ -29,17 +49,34 @@ const CollectionsEngine = (() => {
         if (uploadedHeaders.length !== MANDATORY_HEADERS.length) {
             return {
                 valid: false,
-                reason: `Header Count Mismatch: Expected ${MANDATORY_HEADERS.length}, found ${uploadedHeaders.length}.`
+                reason: `Header Count Mismatch: Expected ${MANDATORY_HEADERS.length} columns, found ${uploadedHeaders.length}.`,
+                referenceUrl: HEADER_REFERENCE_URL
             };
         }
 
+        const mismatches = [];
         for (let i = 0; i < MANDATORY_HEADERS.length; i++) {
             if (uploadedHeaders[i] !== MANDATORY_HEADERS[i]) {
-                return {
-                    valid: false,
-                    reason: `Header Mismatch at Index ${i}: Expected "${MANDATORY_HEADERS[i]}", found "${uploadedHeaders[i]}".`
-                };
+                mismatches.push({
+                    index: i + 1,
+                    expected: MANDATORY_HEADERS[i],
+                    found: uploadedHeaders[i]
+                });
             }
+        }
+
+        if (mismatches.length > 0) {
+            const mismatchDetails = mismatches.slice(0, 5).map(m =>
+                `  • Column ${m.index}: Expected "${m.expected}", found "${m.found}"`
+            ).join('\n');
+            const moreText = mismatches.length > 5 ? `\n  ... and ${mismatches.length - 5} more mismatches` : '';
+
+            return {
+                valid: false,
+                reason: `Column name mismatch detected:\n${mismatchDetails}${moreText}`,
+                referenceUrl: HEADER_REFERENCE_URL,
+                mismatches: mismatches
+            };
         }
 
         return { valid: true };
@@ -278,38 +315,82 @@ const CollectionsEngine = (() => {
             impactedRows: new Set()
         };
 
-        // ... (Rule setup omitted for brevity, logic remains same) ...
+        // Default Rules matching ITC_QC logic
         const defaultRules = [
-            { id: 1, name: "Region Code #N/A Check", column: "Region Code", level: 'row', fn: r => r["Region Code"] !== "#N/A", message: "Region Code is #N/A" },
-            { id: 2, name: "FPO Code #N/A Check", column: "FPO Code", level: 'row', fn: r => r["FPO Code"] !== "#N/A", message: "FPO Code is #N/A" },
-            { id: 3, name: "Agri Area vs Geographical Area", column: "Agri Area", level: 'row', fn: r => Number(r["Agri Area"]) <= Number(r["Geographical Area"]), message: "Agri Area > Geographical Area" },
-            { id: 4, name: "Sowing 1 vs Agri Area", column: "Sowing 1 Area", level: 'row', fn: r => Number(r["Sowing 1 Area"]) <= Number(r["Agri Area"]), message: "Sowing 1 Area > Agri Area" },
-            { id: 5, name: "Sowing 2 vs Agri Area", column: "Sowing 2 Area", level: 'row', fn: r => Number(r["Sowing 2 Area"]) <= Number(r["Agri Area"]), message: "Sowing 2 Area > Agri Area" },
-            { id: 6, name: "Sowing 3 vs Agri Area", column: "Sowing 3 Area", level: 'row', fn: r => Number(r["Sowing 3 Area"]) <= Number(r["Agri Area"]), message: "Sowing 3 Area > Agri Area" },
-            { id: 7, name: "Sowing 2 vs Sowing 1", column: "Sowing 2 Area", level: 'row', fn: r => Number(r["Sowing 2 Area"]) >= Number(r["Sowing 1 Area"]), message: "Sowing 2 Area < Sowing 1 Area" },
-            { id: 8, name: "Sowing 3 vs Sowing 2", column: "Sowing 3 Area", level: 'row', fn: r => Number(r["Sowing 3 Area"]) >= Number(r["Sowing 2 Area"]), message: "Sowing 3 Area < Sowing 2 Area" },
-            { id: 9, name: "Sowing 1 % Range", column: "Sowing 1 %", level: 'row', fn: r => { const val = Number(r["Sowing 1 %"]); return val >= 0 && val <= 100; }, message: "Sowing 1 % outside [0, 100]" },
-            { id: 10, name: "Sowing 2 % Range", column: "Sowing 2 %", level: 'row', fn: r => { const val = Number(r["Sowing 2 %"]); return val >= 0 && val <= 100; }, message: "Sowing 2 % outside [0, 100]" },
-            { id: 11, name: "Sowing 3 % Range", column: "Sowing 3 %", level: 'row', fn: r => { const val = Number(r["Sowing 3 %"]); return val >= 0 && val <= 100; }, message: "Sowing 3 % outside [0, 100]" },
+            // Percentage Checks (0-100)
             {
-                id: 12, name: "Sowing 1 Zero Area Dependency", column: "Sowing 1 Area", level: 'row', fn: r => {
-                    if (Number(r["Sowing 1 Area"]) === 0) return Number(r["Sowing 1 %"]) === 0;
-                    return true;
-                }, message: "Sowing 1 Area is 0 but % is not 0"
+                id: 1, name: "Sowing 1 % Range", column: "Sowing 1 Percentage", level: 'row',
+                fn: r => { const val = Number(r["Sowing 1 Percentage"]); return val >= 0 && val <= 100; },
+                message: "Sowing 1 % outside [0, 100]"
             },
             {
-                id: 13, name: "Sowing 1 Zero % Dependency", column: "Sowing 1 %", level: 'row', fn: r => {
-                    if (Number(r["Sowing 1 %"]) === 0) return Number(r["Sowing 1 Area"]) === 0;
-                    return true;
-                }, message: "Sowing 1 % is 0 but Area is not 0"
+                id: 2, name: "Sowing 2 % Range", column: "Sowing 2 Percentage", level: 'row',
+                fn: r => { const val = Number(r["Sowing 2 Percentage"]); return val >= 0 && val <= 100; },
+                message: "Sowing 2 % outside [0, 100]"
             },
             {
-                id: 14, name: "Sowing 2 Zero Area Cascade", column: "Sowing 2 Area", level: 'row', fn: r => {
-                    if (Number(r["Sowing 2 Area"]) === 0) {
-                        return Number(r["Sowing 1 Area"]) === 0 && Number(r["Sowing 1 %"]) === 0 && Number(r["Sowing 2 %"]) === 0;
-                    }
-                    return true;
-                }, message: "Sowing 2 Area is 0 but nested values (S1 Area, S1 %, S2 %) are not 0"
+                id: 3, name: "Sowing 3 % Range", column: "Sowing 3 Percentage", level: 'row',
+                fn: r => { const val = Number(r["Sowing 3 Percentage"]); return val >= 0 && val <= 100; },
+                message: "Sowing 3 % outside [0, 100]"
+            },
+            {
+                id: 4, name: "Crop Area % Range", column: "Crop  Area Percentage K025", level: 'row',
+                fn: r => { const val = Number(r["Crop  Area Percentage K025"]); return val >= 0 && val <= 100; },
+                message: "Crop Area % outside [0, 100]"
+            },
+            {
+                id: 5, name: "Harvest 1 % Range", column: "Harvest 1 Area Percentage", level: 'row',
+                fn: r => { const val = Number(r["Harvest 1 Area Percentage"]); return val >= 0 && val <= 100; },
+                message: "Harvest 1 % outside [0, 100]"
+            },
+            {
+                id: 6, name: "Harvest 2 % Range", column: "Harvest 2 Area Percentage", level: 'row',
+                fn: r => { const val = Number(r["Harvest 2 Area Percentage"]); return val >= 0 && val <= 100; },
+                message: "Harvest 2 % outside [0, 100]"
+            },
+            {
+                id: 7, name: "Harvest 3 % Range", column: "Harvest 3 Area Percentage", level: 'row',
+                fn: r => { const val = Number(r["Harvest 3 Area Percentage"]); return val >= 0 && val <= 100; },
+                message: "Harvest 3 % outside [0, 100]"
+            },
+            {
+                id: 8, name: "Harvest 4 % Range", column: "Harvest 4 Area Percentage", level: 'row',
+                fn: r => { const val = Number(r["Harvest 4 Area Percentage"]); return val >= 0 && val <= 100; },
+                message: "Harvest 4 % outside [0, 100]"
+            },
+
+            // Progressive Checks (Current >= Previous)
+            {
+                id: 9, name: "Sowing 2 >= Sowing 1", column: "Sowing2 Area (ha)", level: 'row',
+                fn: r => Number(r["Sowing2 Area (ha)"]) >= Number(r["Sowing 1 Area (ha)"]),
+                message: "Sowing 2 < Sowing 1"
+            },
+            {
+                id: 10, name: "Sowing 3 >= Sowing 2", column: "Sowing 3 Area (ha)", level: 'row',
+                fn: r => Number(r["Sowing 3 Area (ha)"]) >= Number(r["Sowing2 Area (ha)"]),
+                message: "Sowing 3 < Sowing 2"
+            },
+            {
+                id: 11, name: "Harvest 2 >= Harvest 1", column: "Harvest 2 Area(ha)", level: 'row',
+                fn: r => Number(r["Harvest 2 Area(ha)"]) >= Number(r["Harvest 1 Area(ha)"]),
+                message: "Harvest 2 < Harvest 1"
+            },
+            {
+                id: 12, name: "Harvest 3 >= Harvest 2", column: "Harvest 3 Area (ha)", level: 'row',
+                fn: r => Number(r["Harvest 3 Area (ha)"]) >= Number(r["Harvest 2 Area(ha)"]),
+                message: "Harvest 3 < Harvest 2"
+            },
+            {
+                id: 13, name: "Harvest 4 >= Harvest 3", column: "Harvest 4 Area (ha)", level: 'row',
+                fn: r => Number(r["Harvest 4 Area (ha)"]) >= Number(r["Harvest 3 Area (ha)"]),
+                message: "Harvest 4 < Harvest 3"
+            },
+
+            // Agri Area Limits
+            {
+                id: 14, name: "Agri Area >= Sowing 3", column: "Total Agriculture Area (ha)", level: 'row',
+                fn: r => Number(r["Total Agriculture Area (ha)"]) >= Number(r["Sowing 3 Area (ha)"]),
+                message: "Agri Area < Sowing 3"
             }
         ];
 

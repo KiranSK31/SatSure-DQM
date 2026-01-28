@@ -68,6 +68,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (modalClose) modalClose.addEventListener('click', hideModal);
 
+    // --- Header Error Modal Logic ---
+    const headerErrorModal = document.getElementById('header-error-modal');
+    const headerErrorMessage = document.getElementById('header-error-message');
+    const headerReferenceLink = document.getElementById('header-reference-link');
+    const headerErrorClose = document.getElementById('header-error-close');
+
+    const showHeaderErrorModal = (errorMessage, referenceUrl) => {
+        if (headerErrorModal && headerErrorMessage && headerReferenceLink) {
+            headerErrorMessage.textContent = errorMessage;
+            headerReferenceLink.href = referenceUrl || '#';
+            headerErrorModal.classList.remove('hidden');
+            document.body.classList.add('modal-active');
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+
+    const hideHeaderErrorModal = () => {
+        if (headerErrorModal) {
+            headerErrorModal.classList.add('hidden');
+            document.body.classList.remove('modal-active');
+        }
+    };
+
+    if (headerErrorClose) headerErrorClose.addEventListener('click', hideHeaderErrorModal);
+
+
     // --- 1. File Upload Handling ---
 
     dropZone.addEventListener('dragover', (e) => {
@@ -110,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     columns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
             }
 
+            if (useDistinctCheckbox) useDistinctCheckbox.checked = false;
             console.log('File loaded successfully:', file.name);
             if (ruleSection) {
                 ruleSection.classList.remove('opacity-30', 'pointer-events-none');
@@ -346,6 +373,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function execCollectionsFlow(rules = null) {
         console.log('execCollectionsFlow triggered. Rules:', rules ? 'Custom' : 'Default');
         try {
+            // Validate headers only for default flow (Step 3.1)
+            if (!rules) {
+                const columnNames = state.columns.map(c => c.name);
+                const validation = CollectionsEngine.validateHeaders(columnNames);
+                if (!validation.valid) {
+                    console.error('Header validation failed:', validation.reason);
+                    hideModal(); // Hide the configuration modal
+                    showHeaderErrorModal(validation.reason, validation.referenceUrl);
+                    return;
+                }
+            }
+
             const results = CollectionsEngine.runQC(state.rawData, rules);
             // Append data profile to state for export
             state.dataProfile = results.dataProfile;
@@ -362,23 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (modalBtnDefault) {
         modalBtnDefault.addEventListener('click', () => {
-            // 1. Validate Headers (Moved from main button)
-            const headers = state.columns.map(c => c.name);
-            const headerValidation = CollectionsEngine.validateHeaders(headers);
-
-            if (!headerValidation.valid) {
-                const headerSheetUrl = "https://docs.google.com/spreadsheets/d/1rhZcuTNs4p2Q0G8seH3A0ArRkRMciFU7rih948HJmzs/edit?gid=0#gid=0";
-                const errorMsg = `FAIL: Header Mismatch - ${headerValidation.reason}. <br><br><b>Action Required:</b> To maintain consistency, please <a href="${headerSheetUrl}" target="_blank" class="text-indigo-600 underline font-bold hover:text-indigo-800 transition-colors">click here for the Reference Google Sheet</a> showing the required column names and order.`;
-
-                state.setResults([], null, [errorMsg]);
-                renderDashboard({ total: state.rawData.length, passed: 0, failed: 0, passPercentage: "0", score: "0" },
-                    state.globalErrors, state.rawData.slice(0, 50), [], state.columns);
-
-                alert('HARD STOP: Collections Header Failure!\nCheck the dashboard for the standard format reference link.');
-                hideModal();
-                return;
-            }
-
+            // Run with default rules (no header validation needed)
             execCollectionsFlow(null);
         });
     }
