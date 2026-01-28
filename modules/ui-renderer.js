@@ -248,8 +248,10 @@ function renderDashboard(summary, globalErrors, dataSlice, resultsSlice, columns
             </td>`).join('');
 
         return `
-            <tr class="hover:bg-blue-50/20 transition-all duration-150">
-                <td class="px-6 py-4 border-b border-gray-50">${statusBadge}</td>
+            <tr class="${res.isDuplicate ? 'bg-amber-50 border-l-4 border-l-amber-500' : 'hover:bg-blue-50/20'} transition-all duration-150">
+                <td class="px-6 py-4 border-b border-gray-50">
+                    ${res.isDuplicate ? '<div class="flex flex-col items-center gap-1">' + statusBadge + '<span class="text-[9px] font-black text-amber-600 uppercase tracking-tight">Duplicate</span></div>' : statusBadge}
+                </td>
                 <td class="px-6 py-4 border-b border-gray-50">${logicReport}</td>
                 ${cells}
             </tr>`;

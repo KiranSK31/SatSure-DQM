@@ -80,12 +80,46 @@ const CollectionsEngine = (() => {
     /**
      * Helper: Aggregations (Supports comma-separated columns for multi-sum)
      */
-    const calculateAgg = (data, colStr, type) => {
+    /**
+     * Helper: Aggregations (Supports comma-separated columns for multi-sum)
+     * Updated to support Group By and Distinct/Representative logic.
+     */
+    const calculateAgg = (data, colStr, type, groupByCol = null, useDistinct = false) => {
         const cols = String(colStr).split(',').map(c => c.trim()).filter(c => c !== "");
+        if (cols.length === 0) return 0;
+
+        let validData = data;
+
+        // If Group By is specified (e.g., "RID"), we first group rows and pick a representative value per group
+        if (groupByCol && data.length > 0 && data[0][groupByCol] !== undefined) {
+            const groups = {};
+            data.forEach(row => {
+                const key = row[groupByCol];
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(row);
+            });
+
+            // Flatten back to a list of representative rows (or just values)
+            // If useDistinct is true (or implied by grouping for "totals"), we take the first value 
+            // assuming the column (e.g. Agri Area) is constant for that ID.
+            validData = Object.values(groups).map(groupRows => {
+                // For now, simplistically take the first row as the representative for the group
+                return groupRows[0];
+            });
+        }
+
         let totalVal = 0;
         cols.forEach(col => {
-            const values = data.map(r => Number(r[col])).filter(v => !isNaN(v));
+            let values = validData.map(r => Number(r[col])).filter(v => !isNaN(v));
+
             if (values.length === 0) return;
+
+            // If explicit "Distinct" flag is on WITHOUT Group By, we just take unique values locally
+            // (Note: This is rarely used if Group By is present, as Group By handles the uniqueness of the entity)
+            if (useDistinct && !groupByCol) {
+                values = [...new Set(values)];
+            }
+
             const t = (type || 'sum').toLowerCase();
             switch (t) {
                 case 'sum': totalVal += values.reduce((a, b) => a + b, 0); break;
@@ -112,6 +146,10 @@ const CollectionsEngine = (() => {
             const isCompareCol = String(r["Is_Compare_Column"]).toLowerCase() === 'true' || String(r["Is_Compare_Column"]).toLowerCase() === 'yes';
             const aggType = r["Aggregation"] || "Sum";
 
+            // New Fields support
+            const groupBy = r["Group_By"] || null;
+            const distinct = String(r["Distinct"] || "").toLowerCase() === 'true' || String(r["Distinct"] || "").toLowerCase() === 'yes';
+
             let fn;
             let message = `${targetCol} ${condition} ${compareAgainst}`;
 
@@ -124,13 +162,20 @@ const CollectionsEngine = (() => {
             } else {
                 // Aggregate Level
                 fn = (row, dataContext) => {
-                    const actualTargetVal = calculateAgg(dataContext || [], targetCol, aggType);
-                    const actualCompareVal = isCompareCol ? calculateAgg(dataContext || [], compareAgainst, aggType) : Number(compareAgainst);
+                    // Pass GroupBy and Distinct params to calculateAgg
+                    const actualTargetVal = calculateAgg(dataContext || [], targetCol, aggType, groupBy, distinct);
+
+                    // For reference column, we usually assume SAME Group By logic if it's a comparison of "Total X vs Total Y"
+                    // E.g. Sum(Agri) by RID vs Sum(Geo) by RID.
+                    const actualCompareVal = isCompareCol
+                        ? calculateAgg(dataContext || [], compareAgainst, aggType, groupBy, distinct)
+                        : Number(compareAgainst);
 
                     const passed = OP_MAP[condition] ? OP_MAP[condition](actualTargetVal, actualCompareVal) : true;
                     if (!passed) {
-                        const targetLabel = `${aggType}(${targetCol})`;
-                        const compareLabel = isCompareCol ? `${aggType}(${compareAgainst})` : compareAgainst;
+                        const aggLabel = aggType + (groupBy ? `[by ${groupBy}]` : '');
+                        const targetLabel = `${aggLabel}(${targetCol})`;
+                        const compareLabel = isCompareCol ? `${aggLabel}(${compareAgainst})` : compareAgainst;
                         message = `AGG FAIL: ${targetLabel} [${actualTargetVal.toFixed(2)}] ${condition} ${compareLabel} [${actualCompareVal.toFixed(2)}]`;
                     }
                     return passed;
@@ -143,7 +188,9 @@ const CollectionsEngine = (() => {
                 column: targetCol.split(',')[0].trim(),
                 level: level,
                 fn: fn,
-                message: message
+                message: message,
+                groupBy: groupBy, // Store for UI if needed
+                distinctPerGroup: distinct
             };
         });
     };
@@ -193,11 +240,25 @@ const CollectionsEngine = (() => {
             });
         });
 
+        // Global Duplicate Count
+        let duplicateRowsCount = 0;
+        const seenRows = new Set();
+        data.forEach(row => {
+            const sig = JSON.stringify(row);
+            if (seenRows.has(sig)) duplicateRowsCount++;
+            else seenRows.add(sig);
+        });
+
         // Convert Sets to counts
         columns.forEach(col => {
             profile[col].uniqueCount = profile[col].uniqueSet.size;
             delete profile[col].uniqueSet;
         });
+
+        profile.metadata = {
+            totalRows: data.length,
+            duplicateRows: duplicateRowsCount
+        };
 
         return profile;
     };
@@ -267,10 +328,34 @@ const CollectionsEngine = (() => {
             if (!passed) globalFailures.push(`[AGGREGATE FAIL] ${rule.name}: ${rule.message}`);
         });
 
+        // Duplicate Detection
+        const seenRows = new Map();
+
         // ... (Row Rule Execution) ...
         data.forEach((row, index) => {
             const rowFailures = [];
             const evaluations = [];
+
+            // 1. Check for Full Row Duplicate
+            const rowSignature = JSON.stringify(row);
+            if (seenRows.has(rowSignature)) {
+                const originalRow = seenRows.get(rowSignature);
+                rowFailures.push({
+                    column: "ALL",
+                    rule: "Duplicate Row Check",
+                    message: `Duplicate of Row ${originalRow}`
+                });
+                evaluations.push({
+                    ruleId: 9999,
+                    ruleDesc: "Duplicate Row",
+                    passed: false,
+                    value: `Ref: Row ${originalRow}`
+                });
+            } else {
+                seenRows.set(rowSignature, index + 1);
+            }
+
+            const isDuplicate = rowFailures.length > 0 && rowFailures[0].rule === "Duplicate Row Check";
 
             rowRules.forEach(rule => {
                 // Check if target column exists
@@ -292,7 +377,13 @@ const CollectionsEngine = (() => {
                 summary.impactedRows.add(index + 1);
             }
 
-            rowResults.push({ row: index + 1, passed: rowPassed, failures: rowFailures, evaluations: evaluations });
+            rowResults.push({
+                row: index + 1,
+                passed: rowPassed,
+                failures: rowFailures,
+                evaluations: evaluations,
+                isDuplicate: isDuplicate
+            });
         });
 
         summary.passPercentage = ((summary.passed / summary.total) * 100).toFixed(1);

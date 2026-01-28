@@ -28,62 +28,52 @@ def create_itc_qc():
     c_harv4_pct = "Harvest 4 Area Percentage"
 
     # 1. QC Sheet (Comprehensive Rules)
-    # Header: QC_Check_Name, Level, Target_Column, Aggregation, Condition, Compare_Against, Is_Compare_Column
+    # Header: QC_Check_Name, Level, Target_Column, Aggregation, Condition, Compare_Against, Is_Compare_Column, Group_By, Distinct
     rules_data = [
-        # Sowing 1
-        ["Sowing 1 vs Geographical", "Row", c_agri_area, "", "<=", c_geo_area, "Yes"],
-        ["Sowing 1 vs Agri Area", "Row", c_sowing1, "", "<=", c_agri_area, "Yes"],
-        ["Sowing 1 % Max", "Row", c_sowing1_pct, "", "<=", "100", "No"],
-        ["Sowing 1 % Min", "Row", c_sowing1_pct, "", ">=", "0", "No"],
+        # --- ROW LEVEL CHECKS ---
+        # Percentage Checks (0-100)
+        ["Sowing 1 % Max", "Row", c_sowing1_pct, "", "<=", "100", "No", "", ""],
+        ["Sowing 1 % Min", "Row", c_sowing1_pct, "", ">=", "0", "No", "", ""],
+        ["Sowing 2 % Max", "Row", c_sowing2_pct, "", "<=", "100", "No", "", ""],
+        ["Sowing 2 % Min", "Row", c_sowing2_pct, "", ">=", "0", "No", "", ""],
+        ["Sowing 3 % Max", "Row", c_sowing3_pct, "", "<=", "100", "No", "", ""],
+        ["Sowing 3 % Min", "Row", c_sowing3_pct, "", ">=", "0", "No", "", ""],
+        ["Acreage % Max", "Row", c_crop_acre_pct, "", "<=", "100", "No", "", ""],
+        ["Acreage % Min", "Row", c_crop_acre_pct, "", ">=", "0", "No", "", ""],
+        ["Harvest 1 % Max", "Row", c_harv1_pct, "", "<=", "100", "No", "", ""],
+        ["Harvest 2 % Max", "Row", c_harv2_pct, "", "<=", "100", "No", "", ""],
+        ["Harvest 3 % Max", "Row", c_harv3_pct, "", "<=", "100", "No", "", ""],
+        ["Harvest 4 % Max", "Row", c_harv4_pct, "", "<=", "100", "No", "", ""],
+
+        # Progressive Checks (Current >= Previous)
+        ["Sowing 2 >= Sowing 1", "Row", c_sowing2, "", ">=", c_sowing1, "Yes", "", ""],
+        ["Sowing 3 >= Sowing 2", "Row", c_sowing3, "", ">=", c_sowing2, "Yes", "", ""],
         
-        # Sowing 2
-        ["Sowing 2 vs Agri Area", "Row", c_sowing2, "", "<=", c_agri_area, "Yes"],
-        ["Sowing 2 vs Sowing 1", "Row", c_sowing2, "", ">=", c_sowing1, "Yes"],
-        ["Sowing 2 % Max", "Row", c_sowing2_pct, "", "<=", "100", "No"],
-        ["Sowing 2 % Min", "Row", c_sowing2_pct, "", ">=", "0", "No"],
+        ["Harvest 2 >= Harvest 1", "Row", c_harv2, "", ">=", c_harv1, "Yes", "", ""],
+        ["Harvest 3 >= Harvest 2", "Row", c_harv3, "", ">=", c_harv2, "Yes", "", ""],
+        ["Harvest 4 >= Harvest 3", "Row", c_harv4, "", ">=", c_harv3, "Yes", "", ""],
+
+        # Agri Area Limits (Row Level) - Agri Area must cover Sowing 3 (Max Sowing)
+        ["Agri Area >= Sowing 3", "Row", c_agri_area, "", ">=", c_sowing3, "Yes", "", ""],
+
+        # --- AGGREGATE LEVEL CHECKS (Grouped by RID) ---
+        # Logic: For a single RID, the Total Agri Area (Unique) must be >= Sum of Crop Areas for that RID.
         
-        # Sowing 3
-        ["Sowing 3 vs Agri Area", "Row", c_sowing3, "", "<=", c_agri_area, "Yes"],
-        ["Sowing 3 vs Sowing 2", "Row", c_sowing3, "", ">=", c_sowing2, "Yes"],
-        ["Sowing 3 % Max", "Row", c_sowing3_pct, "", "<=", "100", "No"],
-        ["Sowing 3 % Min", "Row", c_sowing3_pct, "", ">=", "0", "No"],
+        # 1. Agg(Distinct Agri Area) >= Sum(Crop Area)
+        # Target: Agri Area (Group: RID, Distinct: TRUE) -> Effectively 1 value per RID
+        # Compare: Crop Area (Group: RID, Distinct: FALSE) -> Sum of all crops per RID
+        ["RID: Total Agri >= Sum(Crop Area)", "Agg", c_agri_area, "Sum", ">=", c_crop_acren, "Yes", "RID", "TRUE"],
 
-        # Crop Acreage
-        ["Acreage vs Agri Area", "Row", c_crop_acren, "", "<=", c_agri_area, "Yes"],
-        ["Acreage vs Sowing 3", "Row", c_crop_acren, "", "<=", c_sowing3, "Yes"],
-        ["Acreage % Max", "Row", c_crop_acre_pct, "", "<=", "100", "No"],
-        ["Acreage % Min", "Row", c_crop_acre_pct, "", ">=", "0", "No"],
-
-        # Crop Harvest 1
-        ["Harvest 1 vs Agri Area", "Row", c_harv1, "", "<=", c_agri_area, "Yes"],
-        ["Harvest 1 vs Acreage", "Row", c_harv1, "", "<=", c_crop_acren, "Yes"],
-        ["Harvest 1 % Max", "Row", c_harv1_pct, "", "<=", "100", "No"],
-
-        # Crop Harvest 2
-        ["Harvest 2 vs Agri Area", "Row", c_harv2, "", "<=", c_agri_area, "Yes"],
-        ["Harvest 2 vs Acreage", "Row", c_harv2, "", "<=", c_crop_acren, "Yes"],
-        ["Harvest 2 vs Harvest 1", "Row", c_harv2, "", ">=", c_harv1, "Yes"],
-        ["Harvest 2 % Max", "Row", c_harv2_pct, "", "<=", "100", "No"],
-
-        # Crop Harvest 3
-        ["Harvest 3 vs Agri Area", "Row", c_harv3, "", "<=", c_agri_area, "Yes"],
-        ["Harvest 3 vs Acreage", "Row", c_harv3, "", "<=", c_crop_acren, "Yes"],
-        ["Harvest 3 vs Harvest 2", "Row", c_harv3, "", ">=", c_harv2, "Yes"],
-        ["Harvest 3 % Max", "Row", c_harv3_pct, "", "<=", "100", "No"],
-
-        # Crop Harvest 4
-        ["Harvest 4 vs Agri Area", "Row", c_harv4, "", "<=", c_agri_area, "Yes"],
-        ["Harvest 4 vs Acreage", "Row", c_harv4, "", "<=", c_crop_acren, "Yes"],
-        ["Harvest 4 vs Harvest 3", "Row", c_harv4, "", ">=", c_harv3, "Yes"],
-        ["Harvest 4 % Max", "Row", c_harv4_pct, "", "<=", "100", "No"],
-
-        # Aggregate Level Checks
-        ["Total Agri Area vs Geographical", "Agg", c_agri_area, "Sum", "<=", c_geo_area, "Yes"],
-        ["Total Acreage vs Sowing 3", "Agg", c_crop_acren, "Sum", "<=", c_sowing3, "Yes"]
+        # 2. Agg(Distinct Agri Area) >= Sum(Harvest)
+        # Assuming Harvest areas are also per-crop and should be summed
+        ["RID: Total Agri >= Sum(Harvest 1)", "Agg", c_agri_area, "Sum", ">=", c_harv1, "Yes", "RID", "TRUE"],
+        ["RID: Total Agri >= Sum(Harvest 2)", "Agg", c_agri_area, "Sum", ">=", c_harv2, "Yes", "RID", "TRUE"],
+        ["RID: Total Agri >= Sum(Harvest 3)", "Agg", c_agri_area, "Sum", ">=", c_harv3, "Yes", "RID", "TRUE"],
+        ["RID: Total Agri >= Sum(Harvest 4)", "Agg", c_agri_area, "Sum", ">=", c_harv4, "Yes", "RID", "TRUE"]
     ]
     
     df_qc = pd.DataFrame(rules_data, columns=[
-        "QC_Check_Name", "Level", "Target_Column", "Aggregation", "Condition", "Compare_Against", "Is_Compare_Column"
+        "QC_Check_Name", "Level", "Target_Column", "Aggregation", "Condition", "Compare_Against", "Is_Compare_Column", "Group_By", "Distinct"
     ])
     
     # Escape Operators for visibility

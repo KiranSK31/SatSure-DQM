@@ -450,6 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnColSummary.addEventListener('click', () => {
             const summaryData = [
                 { Metric: 'Total Rows', Value: state.summaryStats.total },
+                { Metric: 'Total Duplicate Rows', Value: state.dataProfile && state.dataProfile.metadata ? state.dataProfile.metadata.duplicateRows : '0' },
                 { Metric: 'Passed Checks', Value: state.summaryStats.passed },
                 { Metric: 'Failed Checks', Value: state.summaryStats.failed },
                 { Metric: 'Compliance Rate', Value: state.summaryStats.passPercentage + '%' }
