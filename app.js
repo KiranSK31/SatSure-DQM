@@ -93,6 +93,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (headerErrorClose) headerErrorClose.addEventListener('click', hideHeaderErrorModal);
 
+    // --- Loading Overlay Logic ---
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const showLoading = () => {
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.classList.add('flex');
+        }
+    };
+    const hideLoading = () => {
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            loadingOverlay.classList.remove('flex');
+        }
+    };
+
 
     // --- 1. File Upload Handling ---
 
@@ -115,6 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.dataTransfer ? e.dataTransfer.files[0] : e.target.files[0];
         console.log('handleFileSelect triggered. File:', file ? file.name : 'No file');
         if (!file) return;
+
+        showLoading();
+        // Short delay to allow UI to render the loading state
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         try {
             const results = await ExcelParser.parse(file);
@@ -144,6 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             alert('Error parsing Excel: ' + err.message);
+        } finally {
+            hideLoading();
         }
     }
 
@@ -361,42 +382,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const { results, summary, globalErrors } = DQMEngine.execute(state.rawData, state.rules);
-            state.setResults(results, summary, globalErrors);
+            showLoading();
+            setTimeout(() => {
+                try {
+                    const { results, summary, globalErrors } = DQMEngine.execute(state.rawData, state.rules);
+                    state.setResults(results, summary, globalErrors);
 
-            renderDashboard(summary, globalErrors, state.rawData.slice(0, 100), results.slice(0, 100), state.columns);
-            btnExport.classList.remove('hidden');
-            if (collectionsActions) collectionsActions.classList.add('hidden');
+                    renderDashboard(summary, globalErrors, state.rawData.slice(0, 100), results.slice(0, 100), state.columns);
+                    btnExport.classList.remove('hidden');
+                    if (collectionsActions) collectionsActions.classList.add('hidden');
+                } catch (err) {
+                    console.error('DQM Execution Error:', err);
+                    alert('Error running DQM: ' + err.message);
+                } finally {
+                    hideLoading();
+                }
+            }, 100);
         });
     }
 
     function execCollectionsFlow(rules = null) {
         console.log('execCollectionsFlow triggered. Rules:', rules ? 'Custom' : 'Default');
-        try {
-            // Validate headers only for default flow (Step 3.1)
-            if (!rules) {
-                const columnNames = state.columns.map(c => c.name);
-                const validation = CollectionsEngine.validateHeaders(columnNames);
-                if (!validation.valid) {
-                    console.error('Header validation failed:', validation.reason);
-                    hideModal(); // Hide the configuration modal
-                    showHeaderErrorModal(validation.reason, validation.referenceUrl);
-                    return;
-                }
-            }
+        showLoading();
 
-            const results = CollectionsEngine.runQC(state.rawData, rules);
-            // Append data profile to state for export
-            state.dataProfile = results.dataProfile;
-            state.setResults(results.results, results.summary, results.globalErrors || []);
-            renderDashboard(results.summary, results.globalErrors || [], state.rawData.slice(0, 100), results.results.slice(0, 100), state.columns);
-            if (btnExport) btnExport.classList.add('hidden');
-            if (collectionsActions) collectionsActions.classList.remove('hidden');
-            hideModal();
-        } catch (err) {
-            console.error('Collections Error:', err);
-            alert('Error running Collections QC: ' + err.message);
-        }
+        // Small delay for UI update
+        setTimeout(() => {
+            try {
+                // Validate headers only for default flow (Step 3.1)
+                if (!rules) {
+                    const columnNames = state.columns.map(c => c.name);
+                    const validation = CollectionsEngine.validateHeaders(columnNames);
+                    if (!validation.valid) {
+                        console.error('Header validation failed:', validation.reason);
+                        hideModal(); // Hide the configuration modal
+                        showHeaderErrorModal(validation.reason, validation.referenceUrl);
+                        hideLoading();
+                        return;
+                    }
+                }
+
+                const results = CollectionsEngine.runQC(state.rawData, rules);
+                // Append data profile to state for export
+                state.dataProfile = results.dataProfile;
+                state.setResults(results.results, results.summary, results.globalErrors || []);
+                renderDashboard(results.summary, results.globalErrors || [], state.rawData.slice(0, 100), results.results.slice(0, 100), state.columns);
+                if (btnExport) btnExport.classList.add('hidden');
+                if (collectionsActions) collectionsActions.classList.remove('hidden');
+                hideModal();
+            } catch (err) {
+                console.error('Collections Error:', err);
+                alert('Error running Collections QC: ' + err.message);
+            } finally {
+                hideLoading();
+            }
+        }, 100);
     }
 
     if (modalBtnDefault) {
@@ -416,6 +455,11 @@ document.addEventListener('DOMContentLoaded', () => {
         qcRulesInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
+
+            showLoading();
+            // Small delay for UI
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             try {
                 const results = await ExcelParser.parse(file);
                 if (results.qcData) {
@@ -427,6 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 alert('Error parsing QC: ' + err.message);
             } finally {
+                hideLoading();
                 e.target.value = '';
             }
         });

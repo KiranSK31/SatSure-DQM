@@ -534,6 +534,18 @@
         </div>
     </div>
 
+    <!-- Loading Overlay -->
+    <div id="loading-overlay"
+        class="fixed inset-0 z-[200] hidden flex flex-col items-center justify-center modal-overlay transition-all duration-300">
+        <div class="bg-white p-10 rounded-[2.5rem] premium-shadow flex flex-col items-center gap-6 animate-fade-in">
+            <div class="w-16 h-16 border-4 border-slate-100 border-t-accent rounded-full animate-spin"></div>
+            <div class="text-center">
+                <h2 class="text-xl font-black text-slate-900">Processing Data</h2>
+                <p class="text-sm text-slate-400 mt-2 font-medium">Hang tight, we're crunching the numbers...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Watermark -->
     <div class="fixed bottom-4 right-6 pointer-events-none z-50">
         <p class="text-[10px] font-black text-slate-200 uppercase tracking-widest">Built by Kiran S Kulkarni</p>
