@@ -21,17 +21,22 @@ window.DQMEngine = {
         if (type === 'number') {
             return [
                 { id: 'gt', label: '>' }, { id: 'lt', label: '<' }, { id: 'gte', label: '>=' },
-                { id: 'lte', label: '<=' }, { id: 'eq', label: '=' }, { id: 'neq', label: '!=' }
+                { id: 'lte', label: '<=' }, { id: 'eq', label: '=' }, { id: 'neq', label: '!=' },
+                { id: 'consistency', label: 'Consistency (0 ↔ Blank)' }
             ];
         }
         if (type === 'string') {
             return [
                 { id: 'eq', label: 'Equals' }, { id: 'neq', label: 'Not Equals' },
                 { id: 'contains', label: 'Contains' }, { id: 'not_contains', label: 'Does Not Contain' },
-                { id: 'starts_with', label: 'Starts With' }
+                { id: 'starts_with', label: 'Starts With' },
+                { id: 'is_blank', label: 'Is Blank' }, { id: 'not_blank', label: 'Is Not Blank' }
             ];
         }
-        return [{ id: 'eq', label: '=' }, { id: 'neq', label: '!=' }];
+        return [
+            { id: 'eq', label: '=' }, { id: 'neq', label: '!=' },
+            { id: 'is_blank', label: 'Is Blank' }, { id: 'not_blank', label: 'Is Not Blank' }
+        ];
     },
 
     execute(dataset, rules) {
@@ -306,7 +311,21 @@ window.DQMEngine = {
     },
 
     evaluateSingle(value, operator, target, type) {
-        if (value === null || value === undefined) return false;
+        const isBlank = value === null || value === undefined || String(value).trim() === '' ||
+            String(value).trim().toUpperCase() === '#N/A' ||
+            String(value).trim().toUpperCase() === 'NA';
+
+        if (operator === 'is_blank') return isBlank;
+        if (operator === 'not_blank') return !isBlank;
+
+        if (operator === 'consistency') {
+            const nVal = Number(value) || 0;
+            const sTarget = String(target || "").trim().toUpperCase();
+            const targetIsBlank = sTarget === "" || sTarget === "NA" || sTarget === "#N/A" || sTarget === "NAN";
+            return nVal !== 0 ? !targetIsBlank : targetIsBlank;
+        }
+
+        if (isBlank) return false;
         if (type === 'number') {
             const nVal = Number(value);
             const nTarget = Number(target);

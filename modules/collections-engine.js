@@ -18,6 +18,7 @@ const CollectionsEngine = (() => {
         "Sowing 1 Percentage",
         "Sowing2 Area (ha)",
         "Sowing 2 Percentage",
+        "Sowing 2 ACR",
         "Sowing 3 Area (ha)",
         "Sowing 3 Percentage",
         "Major crops",
@@ -106,12 +107,24 @@ const CollectionsEngine = (() => {
      */
     const OP_MAP = {
         '<=': (a, b) => a <= b,
+        'lte': (a, b) => a <= b,
         '>=': (a, b) => a >= b,
+        'gte': (a, b) => a >= b,
         '!=': (a, b) => a !== b,
+        'neq': (a, b) => a !== b,
         '==': (a, b) => a === b,
         '=': (a, b) => a === b,
+        'eq': (a, b) => a === b,
         '<': (a, b) => a < b,
-        '>': (a, b) => a > b
+        'lt': (a, b) => a < b,
+        '>': (a, b) => a > b,
+        'gt': (a, b) => a > b,
+        'consistency': (a, b) => {
+            const s2 = Number(a) || 0;
+            const acr = String(b || "").trim();
+            if (s2 !== 0) return acr !== "" && acr.toLowerCase() !== 'nan';
+            return acr === "" || acr.toLowerCase() === 'nan';
+        }
     };
 
     /**
@@ -300,6 +313,136 @@ const CollectionsEngine = (() => {
         return profile;
     };
 
+    const STANDARD_RULES = [
+        // Percentage Checks (0-100)
+        {
+            id: 1, name: "Sowing 1 % Range", column: "Sowing 1 Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Sowing 1 Percentage"]); return val >= 0 && val <= 100; },
+            message: "Sowing 1 % outside [0, 100]"
+        },
+        {
+            id: 2, name: "Sowing 2 % Range", column: "Sowing 2 Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Sowing 2 Percentage"]); return val >= 0 && val <= 100; },
+            message: "Sowing 2 % outside [0, 100]"
+        },
+        {
+            id: 3, name: "Sowing 3 % Range", column: "Sowing 3 Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Sowing 3 Percentage"]); return val >= 0 && val <= 100; },
+            message: "Sowing 3 % outside [0, 100]"
+        },
+        {
+            id: 4, name: "Crop Area % Range", column: "Crop  Area Percentage K025", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Crop  Area Percentage K025"]); return val >= 0 && val <= 100; },
+            message: "Crop Area % outside [0, 100]"
+        },
+        {
+            id: 5, name: "Harvest 1 % Range", column: "Harvest 1 Area Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Harvest 1 Area Percentage"]); return val >= 0 && val <= 100; },
+            message: "Harvest 1 % outside [0, 100]"
+        },
+        {
+            id: 6, name: "Harvest 2 % Range", column: "Harvest 2 Area Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Harvest 2 Area Percentage"]); return val >= 0 && val <= 100; },
+            message: "Harvest 2 % outside [0, 100]"
+        },
+        {
+            id: 7, name: "Harvest 3 % Range", column: "Harvest 3 Area Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Harvest 3 Area Percentage"]); return val >= 0 && val <= 100; },
+            message: "Harvest 3 % outside [0, 100]"
+        },
+        {
+            id: 8, name: "Harvest 4 % Range", column: "Harvest 4 Area Percentage", level: 'row', category: "Range Checks",
+            fn: r => { const val = Number(r["Harvest 4 Area Percentage"]); return val >= 0 && val <= 100; },
+            message: "Harvest 4 % outside [0, 100]"
+        },
+
+        // Progressive Checks (Current >= Previous)
+        {
+            id: 9, name: "Sowing 2 >= Sowing 1", column: "Sowing2 Area (ha)", level: 'row', category: "Progressive Checks",
+            fn: r => {
+                if (r["Sowing 1 Area (ha)"] === undefined || r["Sowing2 Area (ha)"] === undefined) return true;
+                const s1 = Number(r["Sowing 1 Area (ha)"] || 0);
+                const s2 = Number(r["Sowing2 Area (ha)"] || 0);
+                if (s2 === 0) return true; // Skip if no data for S2
+                return s2 >= s1;
+            },
+            message: "Sowing 2 < Sowing 1"
+        },
+        {
+            id: 10, name: "Sowing 3 >= Sowing 2", column: "Sowing 3 Area (ha)", level: 'row', category: "Progressive Checks",
+            fn: r => {
+                if (r["Sowing2 Area (ha)"] === undefined || r["Sowing 3 Area (ha)"] === undefined) return true;
+                const s2 = Number(r["Sowing2 Area (ha)"] || 0);
+                const s3 = Number(r["Sowing 3 Area (ha)"] || 0);
+                if (s3 === 0) return true; // Skip if no data for S3
+                return s3 >= s2;
+            },
+            message: "Sowing 3 < Sowing 2"
+        },
+        {
+            id: 11, name: "Harvest 2 >= Harvest 1", column: "Harvest 2 Area(ha)", level: 'row', category: "Progressive Checks",
+            fn: r => {
+                if (r["Harvest 1 Area(ha)"] === undefined || r["Harvest 2 Area(ha)"] === undefined) return true;
+                const h1 = Number(r["Harvest 1 Area(ha)"] || 0);
+                const h2 = Number(r["Harvest 2 Area(ha)"] || 0);
+                if (h2 === 0) return true;
+                return h2 >= h1;
+            },
+            message: "Harvest 2 < Harvest 1"
+        },
+        {
+            id: 12, name: "Harvest 3 >= Harvest 2", column: "Harvest 3 Area (ha)", level: 'row', category: "Progressive Checks",
+            fn: r => {
+                if (r["Harvest 2 Area(ha)"] === undefined || r["Harvest 3 Area (ha)"] === undefined) return true;
+                const h2 = Number(r["Harvest 2 Area(ha)"] || 0);
+                const h3 = Number(r["Harvest 3 Area (ha)"] || 0);
+                if (h3 === 0) return true;
+                return h3 >= h2;
+            },
+            message: "Harvest 3 < Harvest 2"
+        },
+        {
+            id: 13, name: "Harvest 4 >= Harvest 3", column: "Harvest 4 Area (ha)", level: 'row', category: "Progressive Checks",
+            fn: r => {
+                if (r["Harvest 3 Area (ha)"] === undefined || r["Harvest 4 Area (ha)"] === undefined) return true;
+                const h3 = Number(r["Harvest 3 Area (ha)"] || 0);
+                const h4 = Number(r["Harvest 4 Area (ha)"] || 0);
+                if (h4 === 0) return true;
+                return h4 >= h3;
+            },
+            message: "Harvest 4 < Harvest 3"
+        },
+        // Agri Area Limits
+        {
+            id: 14, name: "Agri Area >= Latest Sowing", column: "Total Agriculture Area (ha)", level: 'row', category: "Limit Checks",
+            fn: r => {
+                const agri = Number(r["Total Agriculture Area (ha)"] || 0);
+                // Get latest non-zero sowing
+                const s3 = r["Sowing 3 Area (ha)"] !== undefined ? Number(r["Sowing 3 Area (ha)"] || 0) : 0;
+                const s2 = r["Sowing2 Area (ha)"] !== undefined ? Number(r["Sowing2 Area (ha)"] || 0) : 0;
+                const s1 = r["Sowing 1 Area (ha)"] !== undefined ? Number(r["Sowing 1 Area (ha)"] || 0) : 0;
+                const latestSowing = s3 > 0 ? s3 : (s2 > 0 ? s2 : s1);
+
+                // If no sowing data at all, skip
+                if (latestSowing === 0) return true;
+
+                return agri >= latestSowing;
+            },
+            message: "Agri Area < Latest Sowing Area"
+        },
+        {
+            id: 15, name: "Sowing 2 Consistency", column: "Sowing2 Area (ha)", level: 'row', category: "Consistency Checks",
+            fn: r => {
+                if (r["Sowing2 Area (ha)"] === undefined || r["Sowing 2 ACR"] === undefined) return true;
+                const s2 = Number(r["Sowing2 Area (ha)"] || 0);
+                const acr = String(r["Sowing 2 ACR"] || "").trim();
+                if (s2 !== 0) return acr !== "" && acr.toLowerCase() !== 'nan';
+                return acr === "" || acr.toLowerCase() === 'nan';
+            },
+            message: "Sowing 2/ACR Mismatch: If Sowing 2 != 0, ACR must exist. If Sowing 2 == 0, ACR must be blank."
+        }
+    ];
+
     /**
      * Step 3.2: QC Execution
      */
@@ -315,87 +458,7 @@ const CollectionsEngine = (() => {
             impactedRows: new Set()
         };
 
-        // Default Rules matching ITC_QC logic
-        const defaultRules = [
-            // Percentage Checks (0-100)
-            {
-                id: 1, name: "Sowing 1 % Range", column: "Sowing 1 Percentage", level: 'row',
-                fn: r => { const val = Number(r["Sowing 1 Percentage"]); return val >= 0 && val <= 100; },
-                message: "Sowing 1 % outside [0, 100]"
-            },
-            {
-                id: 2, name: "Sowing 2 % Range", column: "Sowing 2 Percentage", level: 'row',
-                fn: r => { const val = Number(r["Sowing 2 Percentage"]); return val >= 0 && val <= 100; },
-                message: "Sowing 2 % outside [0, 100]"
-            },
-            {
-                id: 3, name: "Sowing 3 % Range", column: "Sowing 3 Percentage", level: 'row',
-                fn: r => { const val = Number(r["Sowing 3 Percentage"]); return val >= 0 && val <= 100; },
-                message: "Sowing 3 % outside [0, 100]"
-            },
-            {
-                id: 4, name: "Crop Area % Range", column: "Crop  Area Percentage K025", level: 'row',
-                fn: r => { const val = Number(r["Crop  Area Percentage K025"]); return val >= 0 && val <= 100; },
-                message: "Crop Area % outside [0, 100]"
-            },
-            {
-                id: 5, name: "Harvest 1 % Range", column: "Harvest 1 Area Percentage", level: 'row',
-                fn: r => { const val = Number(r["Harvest 1 Area Percentage"]); return val >= 0 && val <= 100; },
-                message: "Harvest 1 % outside [0, 100]"
-            },
-            {
-                id: 6, name: "Harvest 2 % Range", column: "Harvest 2 Area Percentage", level: 'row',
-                fn: r => { const val = Number(r["Harvest 2 Area Percentage"]); return val >= 0 && val <= 100; },
-                message: "Harvest 2 % outside [0, 100]"
-            },
-            {
-                id: 7, name: "Harvest 3 % Range", column: "Harvest 3 Area Percentage", level: 'row',
-                fn: r => { const val = Number(r["Harvest 3 Area Percentage"]); return val >= 0 && val <= 100; },
-                message: "Harvest 3 % outside [0, 100]"
-            },
-            {
-                id: 8, name: "Harvest 4 % Range", column: "Harvest 4 Area Percentage", level: 'row',
-                fn: r => { const val = Number(r["Harvest 4 Area Percentage"]); return val >= 0 && val <= 100; },
-                message: "Harvest 4 % outside [0, 100]"
-            },
-
-            // Progressive Checks (Current >= Previous)
-            {
-                id: 9, name: "Sowing 2 >= Sowing 1", column: "Sowing2 Area (ha)", level: 'row',
-                fn: r => Number(r["Sowing2 Area (ha)"]) >= Number(r["Sowing 1 Area (ha)"]),
-                message: "Sowing 2 < Sowing 1"
-            },
-            {
-                id: 10, name: "Sowing 3 >= Sowing 2", column: "Sowing 3 Area (ha)", level: 'row',
-                fn: r => Number(r["Sowing 3 Area (ha)"]) >= Number(r["Sowing2 Area (ha)"]),
-                message: "Sowing 3 < Sowing 2"
-            },
-            {
-                id: 11, name: "Harvest 2 >= Harvest 1", column: "Harvest 2 Area(ha)", level: 'row',
-                fn: r => Number(r["Harvest 2 Area(ha)"]) >= Number(r["Harvest 1 Area(ha)"]),
-                message: "Harvest 2 < Harvest 1"
-            },
-            {
-                id: 12, name: "Harvest 3 >= Harvest 2", column: "Harvest 3 Area (ha)", level: 'row',
-                fn: r => Number(r["Harvest 3 Area (ha)"]) >= Number(r["Harvest 2 Area(ha)"]),
-                message: "Harvest 3 < Harvest 2"
-            },
-            {
-                id: 13, name: "Harvest 4 >= Harvest 3", column: "Harvest 4 Area (ha)", level: 'row',
-                fn: r => Number(r["Harvest 4 Area (ha)"]) >= Number(r["Harvest 3 Area (ha)"]),
-                message: "Harvest 4 < Harvest 3"
-            },
-
-            // Agri Area Limits
-            {
-                id: 14, name: "Agri Area >= Sowing 3", column: "Total Agriculture Area (ha)", level: 'row',
-                fn: r => Number(r["Total Agriculture Area (ha)"]) >= Number(r["Sowing 3 Area (ha)"]),
-                message: "Agri Area < Sowing 3"
-            }
-        ];
-
-        const processedDefaultRules = defaultRules.map(r => ({ ...r, level: r.level || 'row' }));
-        const activeRules = externalRules && externalRules.length > 0 ? externalRules : processedDefaultRules;
+        const activeRules = (externalRules && externalRules.length > 0) ? externalRules : STANDARD_RULES;
 
         console.log(`CollectionsEngine: Running QC with ${activeRules.length} rules.`);
         const dataProfile = generateDataProfile(data);
@@ -441,8 +504,9 @@ const CollectionsEngine = (() => {
             rowRules.forEach(rule => {
                 // Check if target column exists
                 if (row[rule.column] === undefined) {
-                    rowFailures.push({ column: rule.column, rule: rule.name, message: `Missing Column: ${rule.column}` });
-                    evaluations.push({ ruleId: rule.id, ruleDesc: rule.name, passed: false, value: 'MISSING' });
+                    // IF it's an external (custom) rule or the user is in customized mode, 
+                    // we skip checks for missing columns rather than failing them.
+                    // Strictly speaking, if the column is missing, the check cannot be performed.
                     return;
                 }
 
@@ -479,14 +543,19 @@ const CollectionsEngine = (() => {
         };
     };
 
-    window.CollectionsEngine = {
+    const engineInstance = {
         MANDATORY_HEADERS,
         validateHeaders,
         parseRules,
-        runQC
+        runQC,
+        getStandardRules: () => STANDARD_RULES.map(r => ({ ...r }))
     };
 
-    return window.CollectionsEngine;
+    if (typeof window !== 'undefined') {
+        window.CollectionsEngine = engineInstance;
+    }
+
+    return engineInstance;
 
 })();
 

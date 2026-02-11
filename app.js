@@ -48,9 +48,45 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Modal Elements ---
     const qcChoiceModal = document.getElementById('qc-choice-modal');
     const modalBtnDefault = document.getElementById('modal-btn-default');
-    const modalBtnUpload = document.getElementById('modal-btn-upload');
+    const modalBtnCustomize = document.getElementById('modal-btn-customize');
     const modalClose = document.getElementById('modal-close');
+    const collectionsCustomModal = document.getElementById('collections-custom-modal');
+    const collectionsRulesList = document.getElementById('collections-rules-list');
+    const btnColRunCustom = document.getElementById('btn-col-run-custom');
+    const btnColCustomBack = document.getElementById('btn-col-custom-back');
+    const btnColCustomClose = document.getElementById('btn-col-custom-close');
+    const btnColSelectAll = document.getElementById('btn-col-select-all');
+    const btnColUnselectAll = document.getElementById('btn-col-unselect-all');
+
+    // Advanced Rule Builder Elements
+    const collectionsBuilderModal = document.getElementById('collections-builder-modal');
+    const btnShowBuilder = document.getElementById('btn-show-builder');
+    const btnBuilderClose = document.getElementById('btn-builder-close');
+    const btnBuilderCancel = document.getElementById('btn-builder-cancel');
+
+    const customRuleColSelect = document.getElementById('col-custom-rule-col');
+    const customRuleOpSelect = document.getElementById('col-custom-rule-op');
+    const customRuleValInput = document.getElementById('col-custom-rule-val');
+    const btnColAddRule = document.getElementById('btn-col-add-rule');
+
+    // Advanced Rule Builder Elements
+    const btnLevelRow = document.getElementById('btn-rule-level-row');
+    const btnLevelAgg = document.getElementById('btn-rule-level-agg');
+    const aggOptions = document.getElementById('agg-options');
+    const aggGroupingSection = document.getElementById('agg-grouping-section');
+    const customRuleAggSelect = document.getElementById('col-custom-rule-agg');
+    const customRuleGroupSelect = document.getElementById('col-custom-rule-group');
+    const customRuleDistinctCheck = document.getElementById('col-custom-rule-distinct');
+    const btnCompareVal = document.getElementById('btn-compare-val');
+    const btnCompareCol = document.getElementById('btn-compare-col');
+    const compareTargetLabel = document.getElementById('compare-target-label');
+    const customRuleCompareColSelect = document.getElementById('col-custom-rule-compare-col');
+
     const qcRulesInput = document.getElementById('qc-rules-input');
+
+    let collectionsAddedRules = [];
+    let currentRuleLevel = 'agg';
+    let currentCompareSource = 'column';
 
     // --- Modal Logic ---
     const showModal = () => {
@@ -107,6 +143,223 @@ document.addEventListener('DOMContentLoaded', () => {
             loadingOverlay.classList.remove('flex');
         }
     };
+
+    const showCollectionsBuilderModal = () => {
+        if (collectionsBuilderModal) {
+            populateCustomRuleColumns();
+            collectionsBuilderModal.classList.remove('hidden');
+            document.body.classList.add('modal-active');
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+
+    const hideCollectionsBuilderModal = () => {
+        if (collectionsBuilderModal) {
+            collectionsBuilderModal.classList.add('hidden');
+        }
+    };
+
+    if (btnShowBuilder) btnShowBuilder.addEventListener('click', showCollectionsBuilderModal);
+    if (btnBuilderClose) btnBuilderClose.addEventListener('click', hideCollectionsBuilderModal);
+    if (btnBuilderCancel) btnBuilderCancel.addEventListener('click', hideCollectionsBuilderModal);
+
+    const showCollectionsCustomModal = () => {
+        if (collectionsCustomModal) {
+            renderCollectionsCustomRules();
+            collectionsCustomModal.classList.remove('hidden');
+            qcChoiceModal.classList.add('hidden'); // Hide the choice modal
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+
+    const populateCustomRuleColumns = () => {
+        if (!state.columns) return;
+        const colOptions = '<option value="">Select Column...</option>' +
+            state.columns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+        if (customRuleColSelect) customRuleColSelect.innerHTML = colOptions;
+        if (customRuleGroupSelect) customRuleGroupSelect.innerHTML = '<option value="">No Grouping</option>' + colOptions;
+        if (customRuleCompareColSelect) customRuleCompareColSelect.innerHTML = '<option value="">Select Comparison Column...</option>' + colOptions;
+    };
+
+    const updateCustomRuleOperators = () => {
+        const colName = customRuleColSelect?.value;
+        if (!colName) {
+            if (customRuleOpSelect) customRuleOpSelect.innerHTML = '<option value="">Select Operator...</option>';
+            return;
+        }
+        const colType = state.columns.find(c => c.name === colName)?.type || 'string';
+        const ops = DQMEngine.getOperators(colType, currentRuleLevel === 'agg');
+        if (customRuleOpSelect) {
+            customRuleOpSelect.innerHTML = ops.map(op => `<option value="${op.id}">${op.label}</option>`).join('');
+        }
+    };
+
+    if (customRuleColSelect) {
+        customRuleColSelect.addEventListener('change', updateCustomRuleOperators);
+    }
+
+    // Toggle Handlers
+    if (btnLevelRow && btnLevelAgg) {
+        btnLevelRow.addEventListener('click', () => {
+            currentRuleLevel = 'row';
+            btnLevelRow.classList.add('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-200');
+            btnLevelRow.classList.remove('text-slate-400', 'hover:text-slate-600');
+            btnLevelAgg.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-200');
+            btnLevelAgg.classList.add('text-slate-400', 'hover:text-slate-600');
+            if (aggOptions) aggOptions.classList.add('hidden', 'opacity-0');
+            if (aggGroupingSection) aggGroupingSection.classList.add('hidden', 'opacity-0');
+            updateCustomRuleOperators();
+        });
+        btnLevelAgg.addEventListener('click', () => {
+            currentRuleLevel = 'agg';
+            btnLevelAgg.classList.add('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-200');
+            btnLevelAgg.classList.remove('text-slate-400', 'hover:text-slate-600');
+            btnLevelRow.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-200');
+            btnLevelRow.classList.add('text-slate-400', 'hover:text-slate-600');
+            if (aggOptions) aggOptions.classList.remove('hidden', 'opacity-0');
+            if (aggGroupingSection) aggGroupingSection.classList.remove('hidden', 'opacity-0');
+            updateCustomRuleOperators();
+        });
+    }
+
+    if (btnCompareVal && btnCompareCol) {
+        btnCompareVal.addEventListener('click', () => {
+            currentCompareSource = 'value';
+            btnCompareVal.classList.add('bg-slate-900', 'text-white', 'shadow-lg');
+            btnCompareVal.classList.remove('text-slate-400');
+            btnCompareCol.classList.remove('bg-slate-900', 'text-white', 'shadow-lg');
+            btnCompareCol.classList.add('text-slate-400');
+            customRuleValInput.classList.remove('hidden');
+            customRuleCompareColSelect.classList.add('hidden');
+            compareTargetLabel.innerText = 'Threshold Value';
+        });
+        btnCompareCol.addEventListener('click', () => {
+            currentCompareSource = 'column';
+            btnCompareCol.classList.add('bg-slate-900', 'text-white', 'shadow-lg');
+            btnCompareCol.classList.remove('text-slate-400');
+            btnCompareVal.classList.remove('bg-slate-900', 'text-white', 'shadow-lg');
+            btnCompareVal.classList.add('text-slate-400');
+            customRuleValInput.classList.add('hidden');
+            customRuleCompareColSelect.classList.remove('hidden');
+            compareTargetLabel.innerText = 'Comparison Column';
+        });
+    }
+
+    const hideCollectionsCustomModal = () => {
+        if (collectionsCustomModal) collectionsCustomModal.classList.add('hidden');
+    };
+
+    function renderCollectionsCustomRules() {
+        if (!collectionsRulesList) return;
+        const standardRules = CollectionsEngine.getStandardRules();
+        const allRules = [...standardRules, ...collectionsAddedRules];
+
+        // Filter rules: only show if the target column exists in the current data
+        const availableColumns = new Set(state.columns.map(c => c.name));
+        const filteredRules = allRules.filter(rule => {
+            // Some rules might not have a 'column' property or might be 'ALL'
+            if (!rule.column || rule.column === 'ALL') return true;
+            return availableColumns.has(rule.column);
+        });
+
+        collectionsRulesList.innerHTML = filteredRules.map(rule => `
+            <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-all duration-200">
+                <td class="py-4 px-4 text-center">
+                    <input type="checkbox" checked data-rule-id="${rule.id}" 
+                        class="rule-checkbox w-5 h-5 rounded-lg border-2 border-slate-200 text-indigo-600 focus:ring-indigo-500/20 transition-all cursor-pointer">
+                </td>
+                <td class="py-4 px-4">
+                    <p class="text-sm font-black text-slate-800">${rule.name}</p>
+                    <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">${rule.message}</p>
+                </td>
+                <td class="py-4 px-4">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${rule.category === 'Range Checks' ? 'bg-blue-50 text-blue-600' :
+                rule.category === 'Progressive Checks' ? 'bg-indigo-50 text-indigo-600' :
+                    rule.category === 'User Defined' ? 'bg-emerald-50 text-emerald-600' :
+                        'bg-amber-50 text-amber-600'
+            }">
+                        ${rule.category}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    if (btnColAddRule) {
+        btnColAddRule.addEventListener('click', () => {
+            const col = customRuleColSelect.value;
+            const op = customRuleOpSelect.value;
+            const agg = customRuleAggSelect.value;
+            const group = customRuleGroupSelect.value;
+            const distinct = customRuleDistinctCheck.checked;
+
+            let compareAgainst = '';
+            let isCompareCol = false;
+
+            const isUnary = op === 'is_blank' || op === 'not_blank';
+
+            if (currentCompareSource === 'value') {
+                compareAgainst = customRuleValInput.value;
+                if (compareAgainst === '' && !isUnary) {
+                    alert('Please enter a threshold value.');
+                    return;
+                }
+            } else {
+                compareAgainst = customRuleCompareColSelect.value;
+                if (!compareAgainst && !isUnary) {
+                    alert('Please select a comparison column.');
+                    return;
+                }
+                isCompareCol = !isUnary;
+            }
+
+            if (!col || !op) {
+                alert('Please select a target column and operator.');
+                return;
+            }
+
+            const opDisplay = {
+                'gt': '>', 'lt': '<', 'gte': '>=', 'lte': '<=', 'eq': '==', 'neq': '!=',
+                'contains': 'contains', 'not_contains': 'does not contain', 'starts_with': 'starts with'
+            }[op] || op;
+
+            // Build a "QC Row" compatible with CollectionsEngine.parseRules
+            const qcRow = {
+                "QC_Check_Name": `${currentRuleLevel === 'agg' ? agg.toUpperCase() + '(' + col + ')' : col} ${opDisplay} ${isCompareCol ? compareAgainst : compareAgainst}`,
+                "Level": currentRuleLevel === 'agg' ? 'Aggregate' : 'Row',
+                "Target_Column": col,
+                "Condition": op,
+                "Compare_Against": compareAgainst,
+                "Is_Compare_Column": isCompareCol ? 'true' : 'false',
+                "Aggregation": agg,
+                "Group_By": group,
+                "Distinct": distinct ? 'true' : 'false'
+            };
+
+            // Use internal parser to generate the rule function and logic
+            const parsedRules = CollectionsEngine.parseRules([qcRow]);
+            if (parsedRules && parsedRules.length > 0) {
+                const newRule = parsedRules[0];
+                newRule.id = 20000 + collectionsAddedRules.length; // Ensure unique ID for UI
+                newRule.category = 'User Defined';
+
+                // Add a more descriptive message for the UI if it's an AGG rule
+                if (currentRuleLevel === 'agg') {
+                    newRule.name = `${agg.toUpperCase()}(${col})${group ? ' by ' + group : ''} ${op} ${isCompareCol ? compareAgainst : compareAgainst}`;
+                }
+
+                collectionsAddedRules.push(newRule);
+
+                // Reset inputs
+                customRuleValInput.value = '';
+                customRuleColSelect.value = '';
+                customRuleCompareColSelect.value = '';
+                renderCollectionsCustomRules();
+                hideCollectionsBuilderModal();
+            }
+        });
+    }
 
 
     // --- 1. File Upload Handling ---
@@ -216,6 +469,66 @@ document.addEventListener('DOMContentLoaded', () => {
             const ops = DQMEngine.getOperators(colType, state.scope === 'agg');
             ruleOperatorSelect.innerHTML = ops.map(op => `<option value="${op.id}">${op.label}</option>`).join('');
             ruleOperatorSelect.disabled = false;
+            ruleOperatorSelect.dispatchEvent(new Event('change'));
+        });
+    }
+
+    if (ruleOperatorSelect) {
+        ruleOperatorSelect.addEventListener('change', (e) => {
+            const op = e.target.value;
+            const isUnary = op === 'is_blank' || op === 'not_blank';
+            const isConsistency = op === 'consistency';
+            const thresholdField = ruleValueInput.closest('div.relative') || ruleValueInput;
+            const compareWrapper = document.getElementById('compare-options-container');
+
+            if (isUnary) {
+                if (thresholdField) thresholdField.style.opacity = '0.3';
+                if (thresholdField) thresholdField.style.pointerEvents = 'none';
+                if (compareWrapper) compareWrapper.style.opacity = '0.3';
+                if (compareWrapper) compareWrapper.style.pointerEvents = 'none';
+            } else if (isConsistency) {
+                if (thresholdField) thresholdField.style.opacity = '0.3';
+                if (thresholdField) thresholdField.style.pointerEvents = 'none';
+                if (compareWrapper) compareWrapper.style.opacity = '1';
+                if (compareWrapper) compareWrapper.style.pointerEvents = 'auto';
+                if (useColCompareCheckbox) {
+                    useColCompareCheckbox.checked = true;
+                    useColCompareCheckbox.dispatchEvent(new Event('change'));
+                }
+            } else {
+                if (thresholdField) thresholdField.style.opacity = '1';
+                if (thresholdField) thresholdField.style.pointerEvents = 'auto';
+                if (compareWrapper) compareWrapper.style.opacity = '1';
+                if (compareWrapper) compareWrapper.style.pointerEvents = 'auto';
+            }
+        });
+    }
+
+    if (customRuleOpSelect) {
+        customRuleOpSelect.addEventListener('change', (e) => {
+            const op = e.target.value;
+            const isUnary = op === 'is_blank' || op === 'not_blank';
+            const isConsistency = op === 'consistency';
+            const compareModeContainer = document.getElementById('btn-compare-val')?.closest('div.flex-col');
+            const targetContainer = document.getElementById('compare-target-container')?.closest('div.flex-col');
+
+            if (isUnary) {
+                if (compareModeContainer) compareModeContainer.style.opacity = '0.3';
+                if (compareModeContainer) compareModeContainer.style.pointerEvents = 'none';
+                if (targetContainer) targetContainer.style.opacity = '0.3';
+                if (targetContainer) targetContainer.style.pointerEvents = 'none';
+            } else if (isConsistency) {
+                if (compareModeContainer) compareModeContainer.style.opacity = '0.3';
+                if (compareModeContainer) compareModeContainer.style.pointerEvents = 'none';
+                if (targetContainer) targetContainer.style.opacity = '1';
+                if (targetContainer) targetContainer.style.pointerEvents = 'auto';
+                if (btnCompareCol) btnCompareCol.click();
+            } else {
+                if (compareModeContainer) compareModeContainer.style.opacity = '1';
+                if (compareModeContainer) compareModeContainer.style.pointerEvents = 'auto';
+                if (targetContainer) targetContainer.style.opacity = '1';
+                if (targetContainer) targetContainer.style.pointerEvents = 'auto';
+            }
         });
     }
 
@@ -321,15 +634,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnAddRule) {
         btnAddRule.addEventListener('click', () => {
             const col = ruleColumnSelect.value;
-            const op = ruleOperatorSelect.value;
             const isColCompare = useColCompareCheckbox.checked;
+            const op = ruleOperatorSelect.value;
+            const isUnary = op === 'is_blank' || op === 'not_blank';
             const value = isColCompare ? ruleCompareColSelect.value : ruleValueInput.value;
             const refAggType = isColCompare && state.scope === 'agg' ? ruleCompareAggSelect.value : null;
 
             const errorMsg = document.getElementById('rule-error-msg');
             if (errorMsg) errorMsg.classList.add('hidden');
 
-            if (!col || !op || (value === '' || value === null)) {
+            if (!col || !op || (!isUnary && (value === '' || value === null))) {
                 if (errorMsg) {
                     errorMsg.textContent = "Please fill all fields.";
                     errorMsg.classList.remove('hidden');
@@ -429,6 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnExport) btnExport.classList.add('hidden');
                 if (collectionsActions) collectionsActions.classList.remove('hidden');
                 hideModal();
+                hideCollectionsCustomModal();
             } catch (err) {
                 console.error('Collections Error:', err);
                 alert('Error running Collections QC: ' + err.message);
@@ -438,42 +753,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
 
+    if (modalBtnCustomize) {
+        modalBtnCustomize.addEventListener('click', showCollectionsCustomModal);
+    }
+
+    if (btnColCustomClose) {
+        btnColCustomClose.addEventListener('click', () => {
+            hideCollectionsCustomModal();
+            hideModal();
+        });
+    }
+
+    if (btnColCustomBack) {
+        btnColCustomBack.addEventListener('click', () => {
+            hideCollectionsCustomModal();
+            showModal();
+        });
+    }
+
+    if (btnColSelectAll) {
+        btnColSelectAll.addEventListener('click', () => {
+            document.querySelectorAll('.rule-checkbox').forEach(cb => cb.checked = true);
+        });
+    }
+
+    if (btnColUnselectAll) {
+        btnColUnselectAll.addEventListener('click', () => {
+            document.querySelectorAll('.rule-checkbox').forEach(cb => cb.checked = false);
+        });
+    }
+
+    if (btnColRunCustom) {
+        btnColRunCustom.addEventListener('click', () => {
+            const selectedIds = Array.from(document.querySelectorAll('.rule-checkbox:checked'))
+                .map(cb => parseInt(cb.getAttribute('data-rule-id')));
+
+            const standardRules = CollectionsEngine.getStandardRules();
+            const allRules = [...standardRules, ...collectionsAddedRules];
+            const selectedRules = allRules.filter(r => selectedIds.includes(r.id));
+
+            if (selectedRules.length === 0) {
+                alert('Please select at least one check to run.');
+                return;
+            }
+
+            execCollectionsFlow(selectedRules);
+        });
+    }
+
     if (modalBtnDefault) {
         modalBtnDefault.addEventListener('click', () => {
             // Run with default rules (no header validation needed)
             execCollectionsFlow(null);
-        });
-    }
-
-    if (modalBtnUpload) {
-        modalBtnUpload.addEventListener('click', () => {
-            if (qcRulesInput) qcRulesInput.click();
-        });
-    }
-
-    if (qcRulesInput) {
-        qcRulesInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            showLoading();
-            // Small delay for UI
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            try {
-                const results = await ExcelParser.parse(file);
-                if (results.qcData) {
-                    const rules = CollectionsEngine.parseRules(results.qcData);
-                    execCollectionsFlow(rules);
-                } else {
-                    alert('Error: No "QC" sheet found in file.');
-                }
-            } catch (err) {
-                alert('Error parsing QC: ' + err.message);
-            } finally {
-                hideLoading();
-                e.target.value = '';
-            }
         });
     }
 
@@ -545,8 +876,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnColFailed) {
         btnColFailed.addEventListener('click', () => {
-            const failedRowIndices = new Set(state.results.map(r => r.row));
-            const failedRows = state.rawData.filter((_, idx) => failedRowIndices.has(idx + 1));
+            if (!state.results || state.results.length === 0) return;
+
+            const failedResults = state.results.filter(r => !r.passed);
+
+            if (failedResults.length === 0) {
+                alert('No failed rows to export!');
+                return;
+            }
+
+            const failedRows = failedResults.map(res => {
+                const originalRow = state.rawData[res.row - 1];
+                // Create a clone and add the failure reason
+                const exportRow = { ...originalRow };
+                exportRow["QC_Failures"] = res.failures.map(f => `${f.rule}: ${f.message}`).join(' | ');
+                return exportRow;
+            });
+
             ExcelParser.exportCSV(failedRows, `Collections_Failed_Rows_${state.filename}.csv`);
         });
     }
